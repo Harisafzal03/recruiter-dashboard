@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Button } from "./components/ui/button";
@@ -7,6 +7,13 @@ import { QuestionFlow } from "./app/Components/QuestionFlow";
 import { ArrowLeft } from "lucide-react";
 
 function App() {
+  const [currentFlow, setCurrentFlow] = useState(null);
+
+  const handleFlowChange = (flowData) => {
+    setCurrentFlow(flowData);
+    // You can save or process the flow data here if needed
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen bg-white">
@@ -34,7 +41,7 @@ function App() {
 
         <div className="flex">
           <Sidebar />
-          <QuestionFlow />
+          <QuestionFlow onFlowChange={handleFlowChange} />
         </div>
       </div>
     </DndProvider>

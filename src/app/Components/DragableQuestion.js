@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { useDrag } from "react-dnd";
 import { Button } from "../../components/ui/button";
 
-export function DraggableQuestion({ question, icon, className }) {
+export function DraggableQuestion({ question, icon, className, children }) {
   const ref = useRef(null);
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "question",
@@ -18,11 +18,12 @@ export function DraggableQuestion({ question, icon, className }) {
     <div ref={ref} style={{ opacity: isDragging ? 0.5 : 1 }}>
       <Button 
         variant="ghost" 
-        className={`justify-start gap-2 text-white hover:bg-gray-800 w-full ${className}`}
+        className={`text-black !py-5 hover:bg-gray-800 w-full flex gap-2 items-center ${className}`}
       >
         {icon}
         {question.title}
       </Button>
+      {children}
     </div>
   );
 }
