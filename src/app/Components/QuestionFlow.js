@@ -27,6 +27,25 @@ export function QuestionFlow({ onFlowChange }) {
   const fileInputRef = useRef(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [firstOptionsNodeId, setFirstOptionsNodeId] = useState(null);
+
+  // Function to update node data
+  const updateNodeData = useCallback((nodeId, newData) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              ...newData,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  }, [setNodes]);
 
   const onConnect = useCallback(
     (params) => {
@@ -41,17 +60,28 @@ export function QuestionFlow({ onFlowChange }) {
     if (onFlowChange) onFlowChange({ nodes, edges });
   }, [nodes, edges, onFlowChange]);
 
+  // Enhanced node change handler
   const handleNodesChange = (changes) => {
     onNodesChange(changes);
-    handleFlowChange();
+    // Small delay to ensure React state is updated before notifying parent
+    setTimeout(() => handleFlowChange(), 0);
   };
 
+  // Enhanced edge change handler
   const handleEdgesChange = (changes) => {
     onEdgesChange(changes);
-    handleFlowChange();
+    // Small delay to ensure React state is updated before notifying parent
+    setTimeout(() => handleFlowChange(), 0);
   };
 
   const createNode = (item, position) => {
+    // Check if this is the first options node
+    let isFirstNode = false;
+    if (item.type === "options" && !firstOptionsNodeId) {
+      isFirstNode = true;
+      setFirstOptionsNodeId(`node_${Date.now()}`);
+    }
+
     const newNode = {
       id: `node_${Date.now()}`,
       type: "questionNode",
@@ -60,6 +90,8 @@ export function QuestionFlow({ onFlowChange }) {
         ...item,
         id: `question_${Date.now()}`,
         options: item.options || [{ id: `opt1_${Date.now()}`, text: "Option 1" }],
+        isFirstNode: isFirstNode,
+        updateNodeData: updateNodeData, // Pass the update function to the node
       },
     };
     const updatedNodes = [...nodes, newNode];
@@ -92,10 +124,13 @@ export function QuestionFlow({ onFlowChange }) {
       data: {
         type: node.data.type,
         title: node.data.title,
+        isFirstNode: node.data.isFirstNode,
         options: node.data.options ? node.data.options.map(opt => ({
           id: opt.id,
           text: opt.text
-        })) : undefined
+        })) : undefined,
+        answerText: node.data.answerText,
+        endText: node.data.endText
       }
     }));
 
@@ -137,6 +172,16 @@ export function QuestionFlow({ onFlowChange }) {
         try {
           const importedData = JSON.parse(e.target.result);
           
+          // Find the first options node ID from imported data
+          let firstOptionsId = null;
+          for (const node of importedData.nodes) {
+            if (node.data.type === "options" && node.data.isFirstNode) {
+              firstOptionsId = node.id;
+              break;
+            }
+          }
+          setFirstOptionsNodeId(firstOptionsId);
+          
           // Restore nodes with required ReactFlow properties
           const restoredNodes = importedData.nodes.map(node => ({
             id: node.id,
@@ -146,7 +191,11 @@ export function QuestionFlow({ onFlowChange }) {
               id: node.data.id || `question_${node.id.split('_')[1]}`,
               type: node.data.type,
               title: node.data.title,
-              options: node.data.options
+              options: node.data.options,
+              isFirstNode: node.data.isFirstNode || false,
+              answerText: node.data.answerText,
+              endText: node.data.endText,
+              updateNodeData: updateNodeData, // Pass the update function
             }
           }));
           
@@ -215,6 +264,7 @@ export function QuestionFlow({ onFlowChange }) {
           onConnect={onConnect}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={edgeOptions}
+          proOptions={{ hideAttribution: true }}
         >
           <Background />
           <Controls />

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Handle, Position } from "reactflow";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { Label } from "../../components/ui/label";
@@ -6,7 +6,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Plus, X, Edit } from "lucide-react";
 
-export function QuestionNode({ data, isConnectable }) {
+export function QuestionNode({ data, isConnectable, id }) {
   const [options, setOptions] = useState(data.options || []);
   const [newOption, setNewOption] = useState("");
   const [showInput, setShowInput] = useState(false);
@@ -18,16 +18,35 @@ export function QuestionNode({ data, isConnectable }) {
   const [answerText, setAnswerText] = useState(data.answerText || "");
   const [endText, setEndText] = useState(data.endText || "");
 
+  // Update local state when data props change
+  useEffect(() => {
+    setOptions(data.options || []);
+    setEditedOptions((data.options || []).map((option) => option.text));
+    setEditedTitle(data.title);
+    setAnswerText(data.answerText || "");
+    setEndText(data.endText || "");
+  }, [data]);
+
+  const updateNodeData = (newData) => {
+    if (data.updateNodeData) {
+      data.updateNodeData(id, newData);
+    }
+  };
+
   const addOption = () => {
     if (newOption.trim() !== "") {
       const newOptionObj = {
         id: `${data.id}_opt${options.length + 1}`,
         text: newOption.trim()
       };
-      setOptions([...options, newOptionObj]);
+      const updatedOptions = [...options, newOptionObj];
+      setOptions(updatedOptions);
       setEditedOptions([...editedOptions, newOption.trim()]);
       setNewOption("");
       setShowInput(false);
+      
+      // Update parent component
+      updateNodeData({ options: updatedOptions });
     }
   };
 
@@ -35,6 +54,9 @@ export function QuestionNode({ data, isConnectable }) {
     const updatedOptions = options.filter((option) => option.id !== id);
     setOptions(updatedOptions);
     setEditedOptions(updatedOptions.map((option) => option.text));
+    
+    // Update parent component
+    updateNodeData({ options: updatedOptions });
   };
 
   const handleOptionChange = (index, value) => {
@@ -44,11 +66,39 @@ export function QuestionNode({ data, isConnectable }) {
   };
 
   const saveEdit = () => {
+    // Update the title
+    const updatedTitle = editedTitle;
+    
+    // Update the options
     const updatedOptions = options.map((option, index) => ({
       ...option,
       text: editedOptions[index]
     }));
     setOptions(updatedOptions);
+    
+    // Update text content based on node type
+    let updates = { 
+      title: updatedTitle,
+      options: updatedOptions
+    };
+    
+    if (data.type === "text") {
+      updates.answerText = answerText;
+    } else if (data.type === "end") {
+      updates.endText = endText;
+    }
+    
+    // Update parent component
+    updateNodeData(updates);
+    
+    setIsEditing(false);
+  };
+
+  const saveEndEdit = () => {
+    updateNodeData({ 
+      endText: endText,
+      title: editedTitle
+    });
     setIsEditing(false);
   };
 
@@ -65,11 +115,10 @@ export function QuestionNode({ data, isConnectable }) {
           }}
         />
 
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-medium text-gray-900 text-base">End</h3>
+        <div className="flex items-center justify-between mb-2">
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 flex w-full justify-end"
           >
             <Edit className="h-4 w-4" />
           </button>
@@ -86,7 +135,7 @@ export function QuestionNode({ data, isConnectable }) {
         {isEditing && (
           <div className="mt-4">
             <Button
-              onClick={() => setIsEditing(false)}
+              onClick={saveEndEdit}
               className="bg-black text-white rounded-full px-4 py-2"
             >
               Save
@@ -99,15 +148,19 @@ export function QuestionNode({ data, isConnectable }) {
 
   return (
     <div className="relative rounded-xl border border-gray-300 shadow-sm p-4 bg-white w-[360px]">
-      <Handle
-        type="target"
-        position={Position.Left}
-        isConnectable={isConnectable}
-        style={{
-          top: "35%",
-          left: "-6px"
-        }}
-      />
+      {/* Only render the input handle if it's not the first options question (when isFirstNode is false) 
+          or if it's not an options type question */}
+      {(data.type !== "options" || !data.isFirstNode) && (
+        <Handle
+          type="target"
+          position={Position.Left}
+          isConnectable={isConnectable}
+          style={{
+            top: "35%",
+            left: "-6px"
+          }}
+        />
+      )}
 
       <div className="flex items-center justify-between mb-2">
         {isEditing ? (
@@ -162,6 +215,7 @@ export function QuestionNode({ data, isConnectable }) {
                   variant="ghost"
                   size="sm"
                   onClick={() => removeOption(option.id)}
+                  disabled={!isEditing && options.length <= 1}
                 >
                   <X className="h-4 w-4 text-gray-500" />
                 </Button>
@@ -206,6 +260,7 @@ export function QuestionNode({ data, isConnectable }) {
             <button
               onClick={() => setShowInput(true)}
               className="w-full text-gray-600 hover:text-gray-800 flex items-center justify-between p-2 border rounded-full bg-white shadow-sm"
+              disabled={!isEditing}
             >
               Add Option <Plus className="h-4 w-4" />
             </button>
@@ -213,16 +268,6 @@ export function QuestionNode({ data, isConnectable }) {
         </div>
       ) : data.type === "text" ? (
         <div className="space-y-3">
-          <div>
-            {isEditing ? (
-              <Input
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                className="text-base font-medium text-gray-900 mb-2"
-              />
-            ) : null}
-          </div>
-
           <textarea
             value={answerText}
             onChange={(e) => setAnswerText(e.target.value)}
