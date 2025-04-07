@@ -21,7 +21,7 @@ export function DraggableQuestion({ question, icon, className, children }) {
         className={`text-black !py-5 hover:bg-gray-800 w-full flex gap-2 items-center ${className}`}
       >
         {icon}
-        {question.title}
+        <span className="hidden md:inline">{question.title}</span>
       </Button>
       {children}
     </div>

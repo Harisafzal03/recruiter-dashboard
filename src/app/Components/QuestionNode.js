@@ -18,7 +18,6 @@ export function QuestionNode({ data, isConnectable, id }) {
   const [answerText, setAnswerText] = useState(data.answerText || "");
   const [endText, setEndText] = useState(data.endText || "");
 
-  // Update local state when data props change
   useEffect(() => {
     setOptions(data.options || []);
     setEditedOptions((data.options || []).map((option) => option.text));
@@ -45,7 +44,6 @@ export function QuestionNode({ data, isConnectable, id }) {
       setNewOption("");
       setShowInput(false);
       
-      // Update parent component
       updateNodeData({ options: updatedOptions });
     }
   };
@@ -55,7 +53,6 @@ export function QuestionNode({ data, isConnectable, id }) {
     setOptions(updatedOptions);
     setEditedOptions(updatedOptions.map((option) => option.text));
     
-    // Update parent component
     updateNodeData({ options: updatedOptions });
   };
 
@@ -66,17 +63,14 @@ export function QuestionNode({ data, isConnectable, id }) {
   };
 
   const saveEdit = () => {
-    // Update the title
     const updatedTitle = editedTitle;
-    
-    // Update the options
+
     const updatedOptions = options.map((option, index) => ({
       ...option,
       text: editedOptions[index]
     }));
     setOptions(updatedOptions);
     
-    // Update text content based on node type
     let updates = { 
       title: updatedTitle,
       options: updatedOptions
@@ -88,7 +82,6 @@ export function QuestionNode({ data, isConnectable, id }) {
       updates.endText = endText;
     }
     
-    // Update parent component
     updateNodeData(updates);
     
     setIsEditing(false);
@@ -104,7 +97,7 @@ export function QuestionNode({ data, isConnectable, id }) {
 
   if (data.type === "end") {
     return (
-      <div className="relative rounded-xl border border-gray-300 shadow-sm p-4 bg-white w-[360px]">
+      <div className="relative rounded-[16px] border-2 border-gray-300 shadow-sm p-4 bg-[#614573] w-[307px]">
         <Handle
           type="target"
           position={Position.Left}
@@ -115,41 +108,18 @@ export function QuestionNode({ data, isConnectable, id }) {
           }}
         />
 
-        <div className="flex items-center justify-between mb-2">
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className="text-gray-500 hover:text-gray-700 flex w-full justify-end"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-        </div>
-
         <textarea
           value={endText}
           onChange={(e) => setEndText(e.target.value)}
           placeholder="Enter your final message here..."
-          className="w-full h-32 border border-gray-300 rounded-md p-2 text-gray-700 resize-none"
-          disabled={!isEditing}
+          className="w-full h-32 rounded-md p-2 bg-[#614573] text-white resize-none"
         />
-
-        {isEditing && (
-          <div className="mt-4">
-            <Button
-              onClick={saveEndEdit}
-              className="bg-black text-white rounded-full px-4 py-2"
-            >
-              Save
-            </Button>
-          </div>
-        )}
       </div>
     );
   }
 
   return (
-    <div className="relative rounded-xl border border-gray-300 shadow-sm p-4 bg-white w-[360px]">
-      {/* Only render the input handle if it's not the first options question (when isFirstNode is false) 
-          or if it's not an options type question */}
+    <div className="relative rounded-[16px] border border-[#E0E0E0] shadow-sm p-4 bg-white w-[307px]">
       {(data.type !== "options" || !data.isFirstNode) && (
         <Handle
           type="target"
@@ -168,7 +138,7 @@ export function QuestionNode({ data, isConnectable, id }) {
             value={editedTitle}
             onChange={(e) => setEditedTitle(e.target.value)}
             autoFocus
-            className="text-base font-medium text-gray-900 border border-gray-300 p-1 rounded"
+            className="text-base font-medium text-gray-900 border-2 border-gray-300 p-1 rounded"
           />
         ) : (
           <h3 className="font-medium text-gray-900 text-base">{editedTitle}</h3>
@@ -259,10 +229,10 @@ export function QuestionNode({ data, isConnectable, id }) {
           ) : (
             <button
               onClick={() => setShowInput(true)}
-              className="w-full text-gray-600 hover:text-gray-800 flex items-center justify-between p-2 border rounded-full bg-white shadow-sm"
+              className="w-full text-gray-600 hover:text-gray-800 flex items-center gap-2 p-2 border rounded-full bg-white shadow-sm"
               disabled={!isEditing}
             >
-              Add Option <Plus className="h-4 w-4" />
+              Add Option <Plus className="h-6 w-6" />
             </button>
           )}
         </div>
@@ -281,7 +251,7 @@ export function QuestionNode({ data, isConnectable, id }) {
             position={Position.Right}
             id="text-output"
             style={{
-              bottom: "50%",
+              top: "50%",
               right: "-6px"
             }}
             isConnectable={isConnectable}

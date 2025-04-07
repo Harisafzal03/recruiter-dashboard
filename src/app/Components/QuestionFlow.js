@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useState } from "react";
+import React, { useRef, useCallback, useState, forwardRef, useImperativeHandle } from "react";
 import ReactFlow, {
   addEdge,
   Background,
@@ -8,8 +8,6 @@ import ReactFlow, {
 } from "reactflow";
 import { useDrop } from "react-dnd";
 import { QuestionNode } from "./QuestionNode";
-import { Button } from "../../components/ui/button";
-import { Download, Upload } from "lucide-react";
 import "reactflow/dist/style.css";
 
 const nodeTypes = {
@@ -22,14 +20,12 @@ const edgeOptions = {
   animated: true,
 };
 
-export function QuestionFlow({ onFlowChange }) {
+export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => {
   const dropRef = useRef(null);
-  const fileInputRef = useRef(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [firstOptionsNodeId, setFirstOptionsNodeId] = useState(null);
 
-  // Function to update node data
   const updateNodeData = useCallback((nodeId, newData) => {
     setNodes((nds) =>
       nds.map((node) => {
@@ -60,22 +56,18 @@ export function QuestionFlow({ onFlowChange }) {
     if (onFlowChange) onFlowChange({ nodes, edges });
   }, [nodes, edges, onFlowChange]);
 
-  // Enhanced node change handler
   const handleNodesChange = (changes) => {
     onNodesChange(changes);
-    // Small delay to ensure React state is updated before notifying parent
     setTimeout(() => handleFlowChange(), 0);
   };
 
   // Enhanced edge change handler
   const handleEdgesChange = (changes) => {
     onEdgesChange(changes);
-    // Small delay to ensure React state is updated before notifying parent
     setTimeout(() => handleFlowChange(), 0);
   };
 
   const createNode = (item, position) => {
-    // Check if this is the first options node
     let isFirstNode = false;
     if (item.type === "options" && !firstOptionsNodeId) {
       isFirstNode = true;
@@ -91,7 +83,7 @@ export function QuestionFlow({ onFlowChange }) {
         id: `question_${Date.now()}`,
         options: item.options || [{ id: `opt1_${Date.now()}`, text: "Option 1" }],
         isFirstNode: isFirstNode,
-        updateNodeData: updateNodeData, // Pass the update function to the node
+        updateNodeData: updateNodeData,
       },
     };
     const updatedNodes = [...nodes, newNode];
@@ -115,9 +107,7 @@ export function QuestionFlow({ onFlowChange }) {
 
   drop(dropRef);
 
-  // Simplify the flow data for export
   const simplifyFlowData = (nodes, edges) => {
-    // Simplify nodes
     const simplifiedNodes = nodes.map(node => ({
       id: node.id,
       position: node.position,
@@ -134,7 +124,6 @@ export function QuestionFlow({ onFlowChange }) {
       }
     }));
 
-    // Simplify edges - only keep essential connection info
     const simplifiedEdges = edges.map(edge => ({
       source: edge.source,
       sourceHandle: edge.sourceHandle,
@@ -147,7 +136,6 @@ export function QuestionFlow({ onFlowChange }) {
     };
   };
 
-  // Export flow as simplified JSON
   const exportFlow = () => {
     const simplifiedData = simplifyFlowData(nodes, edges);
     const jsonString = JSON.stringify(simplifiedData, null, 2);
@@ -163,7 +151,6 @@ export function QuestionFlow({ onFlowChange }) {
     URL.revokeObjectURL(url);
   };
 
-  // Import flow from JSON and restore to ReactFlow format
   const importFlow = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -171,8 +158,7 @@ export function QuestionFlow({ onFlowChange }) {
       reader.onload = (e) => {
         try {
           const importedData = JSON.parse(e.target.result);
-          
-          // Find the first options node ID from imported data
+
           let firstOptionsId = null;
           for (const node of importedData.nodes) {
             if (node.data.type === "options" && node.data.isFirstNode) {
@@ -181,8 +167,7 @@ export function QuestionFlow({ onFlowChange }) {
             }
           }
           setFirstOptionsNodeId(firstOptionsId);
-          
-          // Restore nodes with required ReactFlow properties
+
           const restoredNodes = importedData.nodes.map(node => ({
             id: node.id,
             type: "questionNode",
@@ -195,11 +180,10 @@ export function QuestionFlow({ onFlowChange }) {
               isFirstNode: node.data.isFirstNode || false,
               answerText: node.data.answerText,
               endText: node.data.endText,
-              updateNodeData: updateNodeData, // Pass the update function
+              updateNodeData: updateNodeData,
             }
           }));
-          
-          // Restore edges with required ReactFlow properties
+
           const restoredEdges = importedData.edges.map(edge => ({
             id: `reactflow__edge-${edge.source}${edge.sourceHandle || ''}-${edge.target}`,
             source: edge.source,
@@ -223,39 +207,27 @@ export function QuestionFlow({ onFlowChange }) {
     }
   };
 
-  const handleImportClick = () => {
-    fileInputRef.current.click();
-  };
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    exportFlow,
+  }));
+
+  // Add listener to file input
+  React.useEffect(() => {
+    if (fileInputRef?.current) {
+      fileInputRef.current.addEventListener('change', importFlow);
+      
+      return () => {
+        if (fileInputRef?.current) {
+          fileInputRef.current.removeEventListener('change', importFlow);
+        }
+      };
+    }
+  }, [fileInputRef]);
 
   return (
-    <div className="relative flex-1 h-[calc(90vh-4rem)] bg-white border-2 my-5 mr-4 rounded-lg">
-      <div className="flex gap-2 p-2 bg-white border-b border-gray-200" style={{ zIndex: 5 }}>
-        <Button 
-          onClick={exportFlow}
-          variant="outline" 
-          className="flex items-center gap-2"
-        >
-          <Download size={16} />
-          Export Flow
-        </Button>
-        <Button 
-          onClick={handleImportClick}
-          variant="outline" 
-          className="flex items-center gap-2"
-        >
-          <Upload size={16} />
-          Import Flow
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={importFlow}
-          className="hidden"
-        />
-      </div>
-
-      <div ref={dropRef} className="h-[calc(100%-40px)]">
+    <div className="relative flex-1 h-[calc(90vh-4rem)] bg-white ml-14 max-xl:ml-0 rounded-lg">
+      <div ref={dropRef} className="h-full border rounded-[16px] overflow-hidden border-[#F1EAF6]">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -265,11 +237,10 @@ export function QuestionFlow({ onFlowChange }) {
           nodeTypes={nodeTypes}
           defaultEdgeOptions={edgeOptions}
           proOptions={{ hideAttribution: true }}
+          viewport
         >
-          <Background />
-          <Controls />
         </ReactFlow>
       </div>
     </div>
   );
-}
+});

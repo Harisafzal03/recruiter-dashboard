@@ -21,12 +21,13 @@ code {
   right: -28px !important;
   height: 20px !important;
   width: 20px !important;
+  background-color: #825C9A !important;
 
 }
 .react-flow__handle-left {
   top: -10px;
   left: -10px !important;
-  height: 20px !important;
-  width: 20px !important;
+  height: 12px !important;
+  width: 12px !important;
 
 }
