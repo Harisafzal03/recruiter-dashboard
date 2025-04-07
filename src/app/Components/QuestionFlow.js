@@ -1,10 +1,11 @@
-import React, { useRef, useCallback, useState, forwardRef, useImperativeHandle } from "react";
+import React, { useRef, useCallback, useState, forwardRef, useImperativeHandle, useEffect } from "react";
 import ReactFlow, {
   addEdge,
   Background,
   Controls,
   useNodesState,
   useEdgesState,
+  getViewport
 } from "reactflow";
 import { useDrop } from "react-dnd";
 import { QuestionNode } from "./QuestionNode";
@@ -22,9 +23,11 @@ const edgeOptions = {
 
 export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => {
   const dropRef = useRef(null);
+  const reactFlowRef = useRef(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [firstOptionsNodeId, setFirstOptionsNodeId] = useState(null);
+  const [nodeIdCounter, setNodeIdCounter] = useState(0);
 
   const updateNodeData = useCallback((nodeId, newData) => {
     setNodes((nds) =>
@@ -61,27 +64,36 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
     setTimeout(() => handleFlowChange(), 0);
   };
 
-  // Enhanced edge change handler
   const handleEdgesChange = (changes) => {
     onEdgesChange(changes);
     setTimeout(() => handleFlowChange(), 0);
   };
 
+  // Get the next node ID in sequence
+  const getNextNodeId = useCallback(() => {
+    const nextId = nodeIdCounter + 1;
+    setNodeIdCounter(nextId);
+    return `node_${nextId}`;
+  }, [nodeIdCounter]);
+
   const createNode = (item, position) => {
+    const newNodeId = getNextNodeId();
+    const questionId = `question_${nodeIdCounter}`;
+    
     let isFirstNode = false;
     if (item.type === "options" && !firstOptionsNodeId) {
       isFirstNode = true;
-      setFirstOptionsNodeId(`node_${Date.now()}`);
+      setFirstOptionsNodeId(newNodeId);
     }
 
     const newNode = {
-      id: `node_${Date.now()}`,
+      id: newNodeId,
       type: "questionNode",
       position,
       data: {
         ...item,
-        id: `question_${Date.now()}`,
-        options: item.options || [{ id: `opt1_${Date.now()}`, text: "Option 1" }],
+        id: questionId,
+        options: item.options || [{ id: `opt1_${questionId}`, text: "Option 1" }],
         isFirstNode: isFirstNode,
         updateNodeData: updateNodeData,
       },
@@ -95,17 +107,30 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
   const [, drop] = useDrop({
     accept: "question",
     drop: (item, monitor) => {
-      const position = monitor.getClientOffset();
-      if (position) {
-        createNode(item, {
-          x: position.x - 350,
-          y: position.y - 100,
-        });
+      if (!reactFlowRef.current) return;
+      
+      // Get client offset where the item was dropped
+      const clientOffset = monitor.getClientOffset();
+      
+      // Get ReactFlow container bounds
+      const reactFlowBounds = reactFlowRef.current.getBoundingClientRect();
+      
+      // Calculate position relative to the ReactFlow container
+      const position = {
+        x: clientOffset.x - reactFlowBounds.left,
+        y: clientOffset.y - reactFlowBounds.top
+      };
+      
+      // Adjust based on viewport zoom and pan
+      if (reactFlowRef.current.viewportRef) {
+        const { zoom, x: panX, y: panY } = reactFlowRef.current.viewportRef.current.getViewport();
+        position.x = (position.x - panX) / zoom;
+        position.y = (position.y - panY) / zoom;
       }
-    },
-  });
 
-  drop(dropRef);
+      createNode(item, position);
+    }
+  });
 
   const simplifyFlowData = (nodes, edges) => {
     const simplifiedNodes = nodes.map(node => ({
@@ -158,6 +183,16 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
       reader.onload = (e) => {
         try {
           const importedData = JSON.parse(e.target.result);
+          
+          // Find the highest node number to continue the sequence
+          let highestNodeNum = 0;
+          importedData.nodes.forEach(node => {
+            const nodeNumMatch = node.id.match(/node_(\d+)/);
+            if (nodeNumMatch && parseInt(nodeNumMatch[1]) > highestNodeNum) {
+              highestNodeNum = parseInt(nodeNumMatch[1]);
+            }
+          });
+          setNodeIdCounter(highestNodeNum);
 
           let firstOptionsId = null;
           for (const node of importedData.nodes) {
@@ -184,13 +219,13 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
             }
           }));
 
-          const restoredEdges = importedData.edges.map(edge => ({
-            id: `reactflow__edge-${edge.source}${edge.sourceHandle || ''}-${edge.target}`,
+          const restoredEdges = importedData.edges.map((edge, index) => ({
+            id: edge.id || `edge_${index}`,
             source: edge.source,
             sourceHandle: edge.sourceHandle,
             target: edge.target,
             targetHandle: edge.targetHandle || null,
-            ...edgeOptions  // Add back the default edge styling
+            ...edgeOptions
           }));
           
           setNodes(restoredNodes);
@@ -207,12 +242,10 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
     }
   };
 
-  // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     exportFlow,
   }));
 
-  // Add listener to file input
   React.useEffect(() => {
     if (fileInputRef?.current) {
       fileInputRef.current.addEventListener('change', importFlow);
@@ -224,6 +257,8 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
       };
     }
   }, [fileInputRef]);
+
+  drop(dropRef);
 
   return (
     <div className="relative flex-1 h-[calc(90vh-4rem)] bg-white ml-14 max-xl:ml-0 rounded-lg">
@@ -237,7 +272,7 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
           nodeTypes={nodeTypes}
           defaultEdgeOptions={edgeOptions}
           proOptions={{ hideAttribution: true }}
-          viewport
+          ref={reactFlowRef}
         >
         </ReactFlow>
       </div>

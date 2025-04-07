@@ -34,8 +34,10 @@ export function QuestionNode({ data, isConnectable, id }) {
 
   const addOption = () => {
     if (newOption.trim() !== "") {
+      // Use a simpler ID for new options
+      const optionNumber = options.length + 1;
       const newOptionObj = {
-        id: `${data.id}_opt${options.length + 1}`,
+        id: `opt${optionNumber}`,
         text: newOption.trim()
       };
       const updatedOptions = [...options, newOptionObj];
@@ -87,12 +89,12 @@ export function QuestionNode({ data, isConnectable, id }) {
     setIsEditing(false);
   };
 
-  const saveEndEdit = () => {
-    updateNodeData({ 
-      endText: endText,
-      title: editedTitle
-    });
-    setIsEditing(false);
+  // Handler for end text changes
+  const handleEndTextChange = (e) => {
+    const newText = e.target.value;
+    setEndText(newText);
+    // Update the node data immediately without requiring a save button
+    updateNodeData({ endText: newText });
   };
 
   if (data.type === "end") {
@@ -110,9 +112,9 @@ export function QuestionNode({ data, isConnectable, id }) {
 
         <textarea
           value={endText}
-          onChange={(e) => setEndText(e.target.value)}
+          onChange={handleEndTextChange}
           placeholder="Enter your final message here..."
-          className="w-full h-32 rounded-md p-2 bg-[#614573] text-white resize-none"
+          className="w-full h-32 rounded-md p-2 bg-[#614573] text-white resize-none focus:outline-none focus:ring-1 focus:ring-white"
         />
       </div>
     );
