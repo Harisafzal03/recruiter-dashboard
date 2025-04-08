@@ -1,14 +1,12 @@
 import React, { useRef, useCallback, useState, forwardRef, useImperativeHandle, useEffect } from "react";
 import ReactFlow, {
   addEdge,
-  Background,
-  Controls,
   useNodesState,
   useEdgesState,
-  getViewport
 } from "reactflow";
 import { useDrop } from "react-dnd";
 import { QuestionNode } from "./QuestionNode";
+import dummyData from "../Data/dummy.json"; // Import the dummy data
 import "reactflow/dist/style.css";
 
 const nodeTypes = {
@@ -28,6 +26,7 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [firstOptionsNodeId, setFirstOptionsNodeId] = useState(null);
   const [nodeIdCounter, setNodeIdCounter] = useState(0);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const updateNodeData = useCallback((nodeId, newData) => {
     setNodes((nds) =>
@@ -176,6 +175,64 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
     URL.revokeObjectURL(url);
   };
 
+  const loadFlow = (data) => {
+    try {
+      // Find the highest node number to continue the sequence
+      let highestNodeNum = 0;
+      data.nodes.forEach(node => {
+        const nodeNumMatch = node.id.match(/node_(\d+)/);
+        if (nodeNumMatch && parseInt(nodeNumMatch[1]) > highestNodeNum) {
+          highestNodeNum = parseInt(nodeNumMatch[1]);
+        }
+      });
+      setNodeIdCounter(highestNodeNum);
+
+      let firstOptionsId = null;
+      for (const node of data.nodes) {
+        if (node.data.type === "options" && node.data.isFirstNode) {
+          firstOptionsId = node.id;
+          break;
+        }
+      }
+      setFirstOptionsNodeId(firstOptionsId);
+
+      const restoredNodes = data.nodes.map(node => ({
+        id: node.id,
+        type: "questionNode",
+        position: node.position,
+        data: {
+          id: node.data.id || `question_${node.id.split('_')[1]}`,
+          type: node.data.type,
+          title: node.data.title,
+          options: node.data.options,
+          isFirstNode: node.data.isFirstNode || false,
+          answerText: node.data.answerText,
+          endText: node.data.endText,
+          updateNodeData: updateNodeData,
+        }
+      }));
+
+      const restoredEdges = data.edges.map((edge, index) => ({
+        id: edge.id || `edge_${index}`,
+        source: edge.source,
+        sourceHandle: edge.sourceHandle,
+        target: edge.target,
+        targetHandle: edge.targetHandle || null,
+        ...edgeOptions
+      }));
+      
+      setNodes(restoredNodes);
+      setEdges(restoredEdges);
+      
+      if (onFlowChange) onFlowChange({ nodes: restoredNodes, edges: restoredEdges });
+      
+      return true;
+    } catch (error) {
+      console.error("Failed to load flow data:", error);
+      return false;
+    }
+  };
+
   const importFlow = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -183,55 +240,7 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
       reader.onload = (e) => {
         try {
           const importedData = JSON.parse(e.target.result);
-          
-          // Find the highest node number to continue the sequence
-          let highestNodeNum = 0;
-          importedData.nodes.forEach(node => {
-            const nodeNumMatch = node.id.match(/node_(\d+)/);
-            if (nodeNumMatch && parseInt(nodeNumMatch[1]) > highestNodeNum) {
-              highestNodeNum = parseInt(nodeNumMatch[1]);
-            }
-          });
-          setNodeIdCounter(highestNodeNum);
-
-          let firstOptionsId = null;
-          for (const node of importedData.nodes) {
-            if (node.data.type === "options" && node.data.isFirstNode) {
-              firstOptionsId = node.id;
-              break;
-            }
-          }
-          setFirstOptionsNodeId(firstOptionsId);
-
-          const restoredNodes = importedData.nodes.map(node => ({
-            id: node.id,
-            type: "questionNode",
-            position: node.position,
-            data: {
-              id: node.data.id || `question_${node.id.split('_')[1]}`,
-              type: node.data.type,
-              title: node.data.title,
-              options: node.data.options,
-              isFirstNode: node.data.isFirstNode || false,
-              answerText: node.data.answerText,
-              endText: node.data.endText,
-              updateNodeData: updateNodeData,
-            }
-          }));
-
-          const restoredEdges = importedData.edges.map((edge, index) => ({
-            id: edge.id || `edge_${index}`,
-            source: edge.source,
-            sourceHandle: edge.sourceHandle,
-            target: edge.target,
-            targetHandle: edge.targetHandle || null,
-            ...edgeOptions
-          }));
-          
-          setNodes(restoredNodes);
-          setEdges(restoredEdges);
-          
-          if (onFlowChange) onFlowChange({ nodes: restoredNodes, edges: restoredEdges });
+          loadFlow(importedData);
         } catch (error) {
           console.error("Failed to parse flow data:", error);
           alert("Invalid flow data format.");
@@ -241,6 +250,14 @@ export const QuestionFlow = forwardRef(({ onFlowChange, fileInputRef }, ref) => 
       event.target.value = '';
     }
   };
+
+  // Load dummy data on first render
+  useEffect(() => {
+    if (!isInitialized && nodes.length === 0 && dummyData) {
+      loadFlow(dummyData);
+      setIsInitialized(true);
+    }
+  }, [isInitialized, nodes.length]);
 
   useImperativeHandle(ref, () => ({
     exportFlow,
